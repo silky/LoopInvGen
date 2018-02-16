@@ -77,9 +77,9 @@ let create_job ~f ~args ~post ?(features = []) ~tests ()
                : (value list, value) job ref =
   let (pos, neg) = split_tests (List.dedup_and_sort tests) ~f ~post
   in let compute_fvec = compute_feature_vector features
-  in { (create_pos_job () ~f ~args ~post ~features ~pos_tests:pos) with
+  in (ref { (create_pos_job () ~f ~args ~post ~features ~pos_tests:pos)! with
          neg_tests = List.map neg ~f:(fun t -> (t, lazy (compute_fvec t)))
-     }
+     })
 
 let add_tests ~(job : ('a, 'b) job ref) (tests : 'a list) : (('a, 'b) job ref * int) =
   let (pos, neg) = split_tests (List.dedup_and_sort tests) ~f:job.f ~post:job.post
@@ -93,8 +93,8 @@ let add_tests ~(job : ('a, 'b) job ref) (tests : 'a list) : (('a, 'b) job ref * 
                    @ job.pos_tests ;
          neg_tests = List.map neg ~f:(fun t -> (t, lazy (compute_fvec t)))
                    @ job.neg_tests ;
-      },
-      List.(length pos + length neg))
+      }),
+      List.(length pos + length neg)
 
 let add_features ~(job : ('a, 'b) job ref) (features : 'a feature with_desc list)
                  : ('a, 'b) job ref =
