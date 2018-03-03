@@ -65,12 +65,12 @@ let compute_feature_vector features test =
 let create_pos_job ~f ~args ~post ?(features = []) ~pos_tests ()
                    : (value list, value) job ref =
   let compute_fvec = compute_feature_vector features
-  in (ref { f ; post ; features
+  in (ref ({ f ; post ; features
      ; farg_names = List.map args ~f:fst
      ; farg_types = List.map args ~f:snd
      ; pos_tests = List.map pos_tests ~f:(fun t -> (t, lazy (compute_fvec t)))
      ; neg_tests = []
-     })
+     }))
 
 (* Creates a new job with appropriate lazy computations.
    Our jobs deal with Types.value to enable feature synthesis with Escher. *)
@@ -80,7 +80,7 @@ let create_job ~f ~args ~post ?(features = []) ~tests ()
   in let compute_fvec = compute_feature_vector features
   in let p_job = create_pos_job () ~f ~args ~post ~features ~pos_tests:pos in
      let p_neg_tests =  List.map neg ~f:(fun t -> (t, lazy (compute_fvec t))) in 
-    (p_job.neg_tests <- p_neg_tests; p_job)
+    ((!p_job).neg_tests <- p_neg_tests; p_job)
 
 let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value list, 'b) job ref =
   let deref_job = !job in
@@ -90,7 +90,7 @@ let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value 
                              ^ "), already exists in POS set!"))
   else try if (deref_job).post test (Result.try_with (fun () -> (deref_job).f test))
            then (
-                  job.pos_tests <- (test, lazy (compute_feature_vector (deref_job).features test))
+                  deref_job.pos_tests <- (test, lazy (compute_feature_vector (deref_job).features test))
                            :: deref_job.pos_tests;
                   job
                 )
@@ -113,7 +113,7 @@ let add_neg_test ~(job : (value list, 'b) job ref) (test : value list) : (value 
                                      ^ ") = (" ^ (serialize_values ~sep:"," test)
                                      ^ "), does not belong in POS!"))
           | Exit -> (
-                       job.neg_tests <- neg_tests = (test, lazy (compute_feature_vector deref_job.features test))
+                       deref_job.neg_tests <- neg_tests = (test, lazy (compute_feature_vector deref_job.features test))
                                 :: deref_job.neg_tests; 
                        job
                     )
@@ -127,9 +127,9 @@ let add_tests ~(job : ('a, 'b) job ref) (tests : 'a list) : (('a, 'b) job ref * 
                                                     ~f:(fun (n, _) -> n = t))))
   in let compute_fvec = compute_feature_vector deref_job.features
   in ((
-         job.pos_tests <- List.map pos ~f:(fun t -> (t, lazy (compute_fvec t)))
+         deref_job.pos_tests <- List.map pos ~f:(fun t -> (t, lazy (compute_fvec t)))
                    @ deref_job.pos_tests;
-         job.neg_tests <- List.map neg ~f:(fun t -> (t, lazy (compute_fvec t)))
+         deref_job.neg_tests <- List.map neg ~f:(fun t -> (t, lazy (compute_fvec t)))
                    @ deref_job.neg_tests;
          job
       ),
@@ -141,9 +141,9 @@ let add_features ~(job : ('a, 'b) job ref) (features : 'a feature with_desc list
   let deref_job = !job in
     (t, lazy ((compute_feature_vector fs t) @ (Lazy.force fv)))
   in (
-         job.features <- features @ deref_job.features ;
-         job.pos_tests <- List.map deref_job.pos_tests ~f:(add_to_fvec features) ;
-         job.neg_tests <- List.map deref_job.neg_tests ~f:(add_to_fvec features) ;
+         deref_job.features <- features @ deref_job.features ;
+         deref_job.pos_tests <- List.map deref_job.pos_tests ~f:(add_to_fvec features) ;
+         deref_job.neg_tests <- List.map deref_job.neg_tests ~f:(add_to_fvec features) ;
          job         
      )
 
