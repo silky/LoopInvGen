@@ -113,7 +113,7 @@ let add_neg_test ~(job : (value list, 'b) job ref) (test : value list) : (value 
                                      ^ ") = (" ^ (serialize_values ~sep:"," test)
                                      ^ "), does not belong in POS!"))
           | Exit -> (
-                       deref_job.neg_tests <- neg_tests = (test, lazy (compute_feature_vector deref_job.features test))
+                       deref_job.neg_tests <- (test, lazy (compute_feature_vector deref_job.features test))
                                 :: deref_job.neg_tests; 
                        job
                     )
