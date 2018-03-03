@@ -79,7 +79,7 @@ let create_job ~f ~args ~post ?(features = []) ~tests ()
   let (pos, neg) = split_tests (List.dedup_and_sort tests) ~f ~post
   in let compute_fvec = compute_feature_vector features
   in let p_job = create_pos_job () ~f ~args ~post ~features ~pos_tests:pos in
-    p_job.neg_tests <- List.map neg ~f:(fun t -> (t, lazy (compute_fvec t))); p_job
+    (p_job.neg_tests <- (List.map neg ~f:(fun t -> (t, lazy (compute_fvec t)))); p_job)
 
 let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value list, 'b) job ref =
   let deref_job = !job in
@@ -88,11 +88,11 @@ let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value 
                              ^ ") = (" ^ (serialize_values ~sep:"," test)
                              ^ "), already exists in POS set!"))
   else try if (deref_job).post test (Result.try_with (fun () -> (deref_job).f test))
-           then {
+           then (
                   job.pos_tests <- (test, lazy (compute_feature_vector (deref_job).features test))
                            :: deref_job.pos_tests;
                   job
-                }
+                )
            else raise IgnoreTest
        with _ -> raise (Ambiguous_Test ("Test (" ^ (String.concat ~sep:"," (deref_job).farg_names)
                                        ^ ") = (" ^ (serialize_values ~sep:"," test)
@@ -125,7 +125,7 @@ let add_tests ~(job : ('a, 'b) job ref) (tests : 'a list) : (('a, 'b) job ref * 
   in let neg = List.(filter neg ~f:(fun t -> not (exists deref_job.neg_tests
                                                     ~f:(fun (n, _) -> n = t))))
   in let compute_fvec = compute_feature_vector deref_job.features
-  in (
+  in ((
          job.pos_tests <- List.map pos ~f:(fun t -> (t, lazy (compute_fvec t)))
                    @ deref_job.pos_tests;
          job.neg_tests <- List.map neg ~f:(fun t -> (t, lazy (compute_fvec t)))
