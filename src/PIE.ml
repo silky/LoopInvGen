@@ -23,7 +23,7 @@ type ('a, 'b) job = {
   mutable features : 'a feature with_desc list ;
   mutable neg_tests : ('a * (bool list lazy_t)) list ;
   mutable pos_tests : ('a * (bool list lazy_t)) list ;
-  mutable post : ('a, 'b) postcond ;
+  post : ('a, 'b) postcond ;
 }
 
 type config = {
@@ -79,7 +79,8 @@ let create_job ~f ~args ~post ?(features = []) ~tests ()
   let (pos, neg) = split_tests (List.dedup_and_sort tests) ~f ~post
   in let compute_fvec = compute_feature_vector features
   in let p_job = create_pos_job () ~f ~args ~post ~features ~pos_tests:pos in
-    (p_job.neg_tests <- (List.map neg ~f:(fun t -> (t, lazy (compute_fvec t)))); p_job)
+     let p_neg_tests =  List.map neg ~f:(fun t -> (t, lazy (compute_fvec t))) in 
+    (p_job.neg_tests <- p_neg_tests; p_job)
 
 let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value list, 'b) job ref =
   let deref_job = !job in
