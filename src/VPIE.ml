@@ -48,7 +48,7 @@ let learnVPreCond ?(conf = default_config) ?(eval_term = "true") ~(z3 : ZProc.t)
                 | Some model
                   -> let model = Hashtbl.Poly.of_alist_exn model in
                       let test =
-                        List.map2_exn (job!).farg_names (job!).farg_types
+                        List.map2_exn (!job).farg_names (!job).farg_types
                           ~f:(fun n t -> match Hashtbl.find model n with
                                         | Some v -> v
                                         | None
@@ -60,7 +60,7 @@ let learnVPreCond ?(conf = default_config) ?(eval_term = "true") ~(z3 : ZProc.t)
                                                     (string_of_int tries_left))))
                       in Log.debug (lazy ("Counter example: {"
                                         ^ (List.to_string_map2
-                                             test (job!).farg_names ~sep:", "
+                                             test (!job).farg_names ~sep:", "
                                              ~f:(fun v n -> n ^ " = " ^
                                                             (serialize_value v)))
                                         ^ "}"))

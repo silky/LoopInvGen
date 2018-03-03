@@ -20,10 +20,10 @@ type ('a, 'b) job = {
   f : 'a -> 'b ;
   farg_names : string list ;
   farg_types : Types.typ list ;
-  features : 'a feature with_desc list ;
-  neg_tests : ('a * (bool list lazy_t)) list ;
-  pos_tests : ('a * (bool list lazy_t)) list ;
-  post : ('a, 'b) postcond ;
+  mutable features : 'a feature with_desc list ;
+  mutable neg_tests : ('a * (bool list lazy_t)) list ;
+  mutable pos_tests : ('a * (bool list lazy_t)) list ;
+  mutable post : ('a, 'b) postcond ;
 }
 
 type config = {
@@ -82,7 +82,7 @@ let create_job ~f ~args ~post ?(features = []) ~tests ()
     p_job.neg_tests <- List.map neg ~f:(fun t -> (t, lazy (compute_fvec t))); p_job
 
 let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value list, 'b) job ref =
-  let deref_job = job! in
+  let deref_job = !job in
   if List.exists deref_job.pos_tests ~f:(fun (p, _) -> p = test)
   then raise (Duplicate_Test ("Test (" ^ (String.concat ~sep:"," deref_job.farg_names)
                              ^ ") = (" ^ (serialize_values ~sep:"," test)
@@ -99,7 +99,7 @@ let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value 
                                        ^ "), does not belong in POS!"))
 
 let add_neg_test ~(job : (value list, 'b) job ref) (test : value list) : (value list, 'b) job ref =
-  let deref_job = job! in
+  let deref_job = !job in
   if List.exists deref_job.neg_tests ~f:(fun (p, _) -> p = test)
   then raise (Duplicate_Test ("Test (" ^ (String.concat ~sep:"," deref_job.farg_names)
                              ^ ") = (" ^ (serialize_values ~sep:"," test)
@@ -118,7 +118,7 @@ let add_neg_test ~(job : (value list, 'b) job ref) (test : value list) : (value 
                     )
 
 let add_tests ~(job : ('a, 'b) job ref) (tests : 'a list) : (('a, 'b) job ref * int) =
-  let deref_job = job! in
+  let deref_job = !job in
   let (pos, neg) = split_tests (List.dedup_and_sort tests) ~f:deref_job.f ~post:deref_job.post
   in let pos = List.(filter pos ~f:(fun t -> not (exists deref_job.pos_tests
                                                     ~f:(fun (p, _) -> p = t))))
@@ -137,7 +137,7 @@ List.(length pos + length neg))
 let add_features ~(job : ('a, 'b) job ref) (features : 'a feature with_desc list)
                  : ('a, 'b) job ref =
   let add_to_fvec fs (t, fv) =
-  let deref_job = job! in
+  let deref_job = !job in
     (t, lazy ((compute_feature_vector fs t) @ (Lazy.force fv)))
   in (
          job.features <- features @ deref_job.features ;
@@ -242,7 +242,7 @@ let rec resolveSomeConflicts ?(conf = default_config) ?(consts = [])
 let rec augmentFeatures ?(conf = default_config) ?(consts = [])
                         (job : (value list, value) job ref)
                         : (value list, value) job ref =
-  let deref_job = job! in 
+  let deref_job = !job in 
   let conflict_groups = conflictingTests deref_job
   in if conflict_groups = [] then job
      else if conf.disable_synth
@@ -277,11 +277,11 @@ let learnPreCond ?(conf = default_config) ?(consts = []) (job : ('a, 'b) job ref
                   ^ " NEG tests")) ;
   try let job = augmentFeatures ~conf ~consts job
       in let make_f_vecs = List.map ~f:(fun (_, fvec) -> Lazy.force fvec)
-      in let (pos_vecs, neg_vecs) = List.(dedup_and_sort (make_f_vecs (job!).pos_tests),
-                                          dedup_and_sort (make_f_vecs (job!).neg_tests))
-      in try let cnf = learnCNF pos_vecs neg_vecs ~n:(List.length (job!).features)
+      in let (pos_vecs, neg_vecs) = List.(dedup_and_sort (make_f_vecs (!job).pos_tests),
+                                          dedup_and_sort (make_f_vecs (!job).neg_tests))
+      in try let cnf = learnCNF pos_vecs neg_vecs ~n:(List.length (!job).features)
                                 ~conf:conf.for_BFL
-             in Some (CNF.map cnf ~f:(fun i -> List.nth_exn (job!).features (i-1)))
+             in Some (CNF.map cnf ~f:(fun i -> List.nth_exn (!job).features (i-1)))
          with ClauseEncodingError -> None
   with _ -> None
 
