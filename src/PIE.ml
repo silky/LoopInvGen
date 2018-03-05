@@ -132,10 +132,9 @@ let add_tests ~(job : ('a, 'b) job ref) (tests : 'a list) : (('a, 'b) job * int)
       ),
 List.(length pos + length neg))
 
-let add_features ~(job : ('a, 'b) job ref) (features : 'a feature with_desc list)
-                 : ('a, 'b) job ref =
-  let add_to_fvec fs (t, fv) =
-  in ((t, lazy ((compute_feature_vector fs t) @ (Lazy.force fv)))
+let add_features ~(job : ('a, 'b) job) (features : 'a feature with_desc list)
+                 : ('a, 'b) job =
+  let add_to_fvec fs (t, fv) = ((t, lazy ((compute_feature_vector fs t) @ (Lazy.force fv)))
   in (
          job.features <- features @ job.features ;
          job.pos_tests <- List.map job.pos_tests ~f:(add_to_fvec features) ;
@@ -267,9 +266,9 @@ let rec augmentFeatures ?(conf = default_config) ?(consts = [])
 let learnPreCond ?(conf = default_config) ?(consts = []) (job : ('a, 'b) job)
                  : ('a feature with_desc) CNF.t option =
   Log.debug (lazy ("New PI task with "
-                  ^ (string_of_int (List.length job.pos_tests))
+                  ^ (string_of_int (List.length (!job).pos_tests))
                   ^ " POS + "
-                  ^ (string_of_int (List.length job.neg_tests))
+                  ^ (string_of_int (List.length (!job).neg_tests))
                   ^ " NEG tests")) ;
   try let job = augmentFeatures ~conf ~consts job
       in let make_f_vecs = List.map ~f:(fun (_, fvec) -> Lazy.force fvec)
