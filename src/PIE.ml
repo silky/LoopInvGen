@@ -82,7 +82,7 @@ let create_job ~f ~args ~post ?(features = []) ~tests ()
      let p_neg_tests =  List.map neg ~f:(fun t -> (t, lazy (compute_fvec t))) in 
     (p_job.neg_tests <- p_neg_tests; p_job)
 
-let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value list, 'b) job =
+let add_pos_test ~(job : (value list, 'b) job) (test : value list) : (value list, 'b) job =
   if List.exists job.pos_tests ~f:(fun (p, _) -> p = test)
   then raise (Duplicate_Test ("Test (" ^ (String.concat ~sep:"," job.farg_names)
                              ^ ") = (" ^ (serialize_values ~sep:"," test)
@@ -98,7 +98,7 @@ let add_pos_test ~(job : (value list, 'b) job ref) (test : value list) : (value 
                                        ^ ") = (" ^ (serialize_values ~sep:"," test)
                                        ^ "), does not belong in POS!"))
 
-let add_neg_test ~(job : (value list, 'b) job ref) (test : value list) : (value list, 'b) job =
+let add_neg_test ~(job : (value list, 'b) job) (test : value list) : (value list, 'b) job =
   if List.exists job.neg_tests ~f:(fun (p, _) -> p = test)
   then raise (Duplicate_Test ("Test (" ^ (String.concat ~sep:"," job.farg_names)
                              ^ ") = (" ^ (serialize_values ~sep:"," test)
@@ -116,7 +116,7 @@ let add_neg_test ~(job : (value list, 'b) job ref) (test : value list) : (value 
                        job
                     )
 
-let add_tests ~(job : ('a, 'b) job ref) (tests : 'a list) : (('a, 'b) job * int) =
+let add_tests ~(job : ('a, 'b) job) (tests : 'a list) : (('a, 'b) job * int) =
   let (pos, neg) = split_tests (List.dedup_and_sort tests) ~f:job.f ~post:job.post
   in let pos = List.(filter pos ~f:(fun t -> not (exists job.pos_tests
                                                     ~f:(fun (p, _) -> p = t))))
@@ -134,13 +134,13 @@ List.(length pos + length neg))
 
 let add_features ~(job : ('a, 'b) job) (features : 'a feature with_desc list)
                  : ('a, 'b) job =
-  let add_to_fvec fs (t, fv) = ((t, lazy ((compute_feature_vector fs t) @ (Lazy.force fv)))
+  let add_to_fvec fs (t, fv) = (t, lazy ((compute_feature_vector fs t) @ (Lazy.force fv)))
   in (
          job.features <- features @ job.features ;
          job.pos_tests <- List.map job.pos_tests ~f:(add_to_fvec features) ;
          job.neg_tests <- List.map job.neg_tests ~f:(add_to_fvec features) ;
          job         
-     ))
+     )
 
 (* this function takes the same arguments as does learnSpec and returns groups
    of tests that illustrate a missing feature. Each group has the property that
@@ -266,9 +266,9 @@ let rec augmentFeatures ?(conf = default_config) ?(consts = [])
 let learnPreCond ?(conf = default_config) ?(consts = []) (job : ('a, 'b) job)
                  : ('a feature with_desc) CNF.t option =
   Log.debug (lazy ("New PI task with "
-                  ^ (string_of_int (List.length (!job).pos_tests))
+                  ^ (string_of_int (List.length job.pos_tests))
                   ^ " POS + "
-                  ^ (string_of_int (List.length (!job).neg_tests))
+                  ^ (string_of_int (List.length job.neg_tests))
                   ^ " NEG tests")) ;
   try let job = augmentFeatures ~conf ~consts job
       in let make_f_vecs = List.map ~f:(fun (_, fvec) -> Lazy.force fvec)
