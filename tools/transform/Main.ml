@@ -47,56 +47,33 @@ let translate_to_general benchmark =
   ))
 
 let replace grammar_rules ~benchmark do_replace_vars do_replace_consts =
-  let all_ctypes = ref [] and all_vtypes = ref []
-  in let vars_types =
-       List.fold benchmark ~init:[]
-         ~f:(fun acc sexp -> match sexp with
-             | List ((Atom "synth-inv") :: _ :: (List z) :: _) -> z
-             | _ -> acc)
-  in let found_vtypes =
-       List.dedup_and_sort ~compare:Sexp.compare
-                           (List.map vars_types ~f:(fun [@warning "-8"] (List [_;t]) -> t))
+  let parsed = SyGuS.parse_sexps benchmark in
+  let found_consts =
+        List.dedup_and_sort ~compare:Poly.compare
+                            ((Value.Int 0) :: (Value.Int 1)
+                            :: (Value.Bool true) :: (Value.Bool false)
+                            :: parsed.constants)
+  in let found_vars =
+       List.find_map_exn benchmark
+         ~f:(function
+             | List ((Atom "synth-inv") :: _ :: (List z) :: _)
+               -> Some (List.dedup_and_sort ~compare:Poly.compare z)
+             | _ -> None)
   in let rec helper = function
-       | Atom _ as sexp -> Some sexp
+       | Atom _ as sexp -> [ sexp ]
        | List [ (Atom "Constant") ; (Atom ctype) ] as sexp
-         -> Some (if not do_replace_consts then sexp
-                  else ( all_ctypes := ctype :: !all_ctypes
-                       ; Atom ("ConstantsOfType" ^ ctype) ))
-       | List [ (Atom "Variable") ; (Atom vtype) ] as sexp
-         -> if not do_replace_vars then Some sexp
-            else if List.mem found_vtypes (Atom vtype) ~equal:Sexp.equal
-                 then ( all_vtypes := vtype :: !all_vtypes
-                      ; Some (Atom ("VariablesOfType" ^ vtype)) )
-                 else None
-       | List sexps -> Some (List (List.filter_map ~f:helper sexps))
-   in let modified_rules = List.filter_map ~f:helper grammar_rules
-   in let ctype_rules =
-        if not do_replace_consts then []
-        else begin
-          let parsed = SyGuS.parse_sexps benchmark
-           in let found_consts =
-                List.dedup_and_sort ~compare:Poly.compare
-                   ((Value.Int 0) :: (Value.Int 1) ::
-                    (Value.Bool true) :: (Value.Bool false) :: parsed.constants)
-          in List.map !all_ctypes
-               ~f:(fun ctype
-                     -> List [ (Atom ("ConstantsOfType" ^ ctype))
-                             ; (Atom ctype)
-                             ; (List (List.filter_map found_consts
-                                        ~f:(fun value -> if Type.to_string (Value.typeof value) = ctype
-                                                         then Some (Atom (Value.to_string value)) else None))) ])
-        end
-   in let vtype_rules =
-        if not do_replace_vars then []
-        else begin
-          List.map !all_vtypes
-            ~f:(fun vtype -> List [ (Atom ("VariablesOfType" ^ vtype))
-                                  ; (Atom vtype)
-                                  ; (List (List.filter_map vars_types
-                                             ~f:(fun [@warning "-8"] (List [v;t])
-                                                 -> if t = Atom vtype then Some v else None))) ])
-        end
-   in List (vtype_rules @ ctype_rules @ modified_rules)
+         -> if not do_replace_consts then [ sexp ]
+            else List.filter_map found_consts
+                                 ~f:(fun v -> if Type.to_string (Value.typeof v) = ctype
+                                              then Some (Atom (Value.to_string v))
+                                              else None)
+       | List [ (Atom "Variable") ; vtype ] as sexp
+         -> if not do_replace_vars then [ sexp ]
+            else List.filter_map found_vars
+                                 ~f:(fun [@warning "-8"] (List [v;t])
+                                     -> if t = vtype then Some v else None)
+       | List sexps -> [ List (List.(concat (map ~f:helper sexps))) ]
+  in List.(concat (map ~f:helper grammar_rules))
 
 let fix_arity benchmark =
   let rec helper = function
@@ -111,6 +88,24 @@ let fix_arity benchmark =
     | List sexps -> List (List.map ~f:helper sexps)
   in List.map ~f:helper benchmark
 
+let sanitize_names benchmark =
+  let sanitize str = String.tr str ~target:'-' ~replacement:'_' in
+  let parsed = SyGuS.parse_sexps benchmark in
+  let names_table = String.Table.create () ~size:(List.length parsed.variables)
+   in List.iter parsed.variables
+                ~f:(fun (v,_) -> String.Table.set names_table
+                                                  ~key:v ~data:(sanitize v))
+    ; List.iter (parsed.inv_func :: parsed.functions)
+                ~f:(fun f -> String.Table.set names_table
+                                              ~key:f.name ~data:(sanitize f.name))
+    ; let rec helper = function
+        | Atom a -> begin match String.Table.find names_table a with
+                      | None -> Atom a
+                      | Some v -> Atom v
+                    end
+        | List l -> List (List.map ~f:helper l)
+       in List.map ~f:helper benchmark
+
 let main gramfile do_translate
          do_replace_vars do_replace_consts do_fix_arity
          do_sanitize_names
@@ -118,12 +113,14 @@ let main gramfile do_translate
   let (rules, funcs) = read_grammar_from gramfile in
   let in_chan = Utils.get_in_channel sygusfile in
   let benchmark = input_sexps in_chan in
+  let benchmark = if do_sanitize_names then sanitize_names benchmark
+                                       else benchmark in
   let new_rules = replace rules ~benchmark do_replace_vars do_replace_consts in
   let benchmark = List.rev (
                     List.fold benchmark ~init:[]
                       ~f:(fun acc sexp -> match sexp with
                           | List ((Atom "synth-inv" as x) :: y :: z :: _)
-                            -> (List [x ; y ; z ; new_rules]) :: (funcs @ acc)
+                            -> (List [x ; y ; z ; (List new_rules)]) :: (funcs @ acc)
                           | _ -> sexp :: acc))
    in let benchmark = if do_fix_arity then fix_arity benchmark else benchmark
    in let benchmark = if do_translate then translate_to_general benchmark else benchmark
@@ -142,7 +139,7 @@ let spec =
     +> flag "-c" no_arg
        ~doc:"Replace (Constant T) in the grammar with non-terminals that point to constants."
     +> flag "-a" no_arg
-       ~doc:"Replace variadic versions of *, *, and, or with binary versions."
+       ~doc:"Replace variadic versions of +, *, and, or with binary versions."
     +> flag "-s" no_arg
        ~doc:"Sanitize variable and function names."
     +> anon (maybe_with_default "-" ("filename" %: file))
