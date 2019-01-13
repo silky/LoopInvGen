@@ -2,7 +2,9 @@ open Base
 
 open Expr
 
-let components = let (=/=) = (fun x y -> (not (Expr.equal x y))) in [
+let (=/=) = fun x y -> (not (Expr.equal x y))
+
+let all = [
   {
     name = "not";
     codomain = Type.BOOL;

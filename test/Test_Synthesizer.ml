@@ -3,8 +3,7 @@ open LoopInvGen
 
 let y_PLUS_x () =
   let open Synthesizer in
-  let result = solve [] {
-    logic = Logic.of_string "LIA";
+  let result = solve [] ~config:Synthesizer.default_config {
     arg_names = [ "x" ; "y" ];
     inputs = List.map ~f:(Array.map ~f:(fun i -> Value.Int i))
                [ [| 3 ; 7 ; (-1) ; (-4) |]
@@ -14,8 +13,7 @@ let y_PLUS_x () =
 
 let y_MINUS_z_LE_x () =
   let open Synthesizer in
-  let result = solve [] {
-    logic = Logic.of_string "LIA";
+  let result = solve [] ~config:Synthesizer.default_config {
     arg_names = [ "x" ; "y" ; "z" ];
     inputs = List.map ~f:(Array.map ~f:(fun i -> Value.Int i))
                [ [| 3 ; 7 ; (-1) ; (-4) ; 6 |]
@@ -23,24 +21,23 @@ let y_MINUS_z_LE_x () =
                ; [| 7 ; (-20) ; (-50) ; 11 ; (-1) |] ];
     outputs = Array.map ~f:(fun b -> Value.Bool b)
                         [| true ; false ; false ; false ; true |]
-  } in Alcotest.(check string) "identical" "(<= (- y z) x)" result.string
+  } in Alcotest.(check string) "identical" "(<= (- y x) z)" result.string
 
-let y_MINUS_x_MINUS_z_LE_x () =
+let y_MINUS_x_MINUS_x_LE_z () =
   let open Synthesizer in
-  let result = solve [] {
-    logic = Logic.of_string "LIA";
+  let result = solve [] ~config:Synthesizer.default_config {
     arg_names = [ "w" ; "x" ; "y" ; "z" ];
     inputs = List.map ~f:(Array.map ~f:(fun i -> Value.Int i))
                [ [| 4 ; (-1) ; (-5) ; 1 ; (-1) ; 2 |]
                ; [| 3 ; 7 ; (-1) ; (-4) ; 1 ; 2 |]
-               ; [| 9 ; (-3) ; (-10) ; 11 ; (-10) ; 2  |]
+               ; [| 9 ; 7 ; (-10) ; 11 ; (-10) ; 2  |]
                ; [| 4 ; (-6) ; (-10) ; 11 ; (-1) ; (-3) |] ];
     outputs = Array.map ~f:(fun b -> Value.Bool b)
                         [| true ; true ; false ; false ; true ; false |]
-  } in Alcotest.(check string) "identical" "(<= (- (- y w) z) x)" result.string
+  } in Alcotest.(check string) "identical" "(<= (- (- y x) x) z)" result.string
 
 let all = [
   "(+ y x)",              `Quick, y_PLUS_x ;
   "(<= (- y z) x)",       `Quick, y_MINUS_z_LE_x ;
-  "(<= (- (- y w) z) x)", `Quick, y_MINUS_x_MINUS_z_LE_x ;
+  "(<= (- (- y x) x) z)", `Quick, y_MINUS_x_MINUS_x_LE_z ;
 ]

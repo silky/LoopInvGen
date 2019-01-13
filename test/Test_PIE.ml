@@ -63,9 +63,9 @@ let abs_precond_auto_1 () =
   in Alcotest.(check string) "identical" "(or (= x (+ x x)) (> x 0))" res
 
 let abs_feature_synthesis () =
-  let res = snd (synthFeature ~job:abs_job ~logic:(Logic.of_string "LIA")
+  let res = snd (synthFeature ~job:abs_job ~conf:(Synthesizer.default_config)
                               (List.hd_exn (conflictingTests abs_job)))
-  in Alcotest.(check string) "identical" "(= x 0)" res
+  in Alcotest.(check string) "identical" "(<= 0 x)" res
 
 let abs_zero_initial_features () =
   let res = cnf_opt_to_desc (

@@ -29,10 +29,13 @@ let main zpath statefile logfile statsfile max_conflicts
          LIG.default_config._VPIE with
          _PIE = {
            LIG.default_config._VPIE._PIE with
-           synth_logic = logic ;
-           max_conflict_group_size = (if max_conflicts > 0 then max_conflicts
-                                      else (logic.conflict_group_size_multiplier
-                                            * PIE.base_max_conflict_group_size)) ;
+           _Synthesizer = {
+             LIG.default_config._VPIE._PIE._Synthesizer with
+             logic = logic
+           }
+           ; max_conflict_group_size = (if max_conflicts > 0 then max_conflicts
+                                        else (logic.conflict_group_size_multiplier
+                                             * PIE.base_max_conflict_group_size)) ;
          }
        ; max_tries = max_strengthening_attempts
        }

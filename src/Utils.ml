@@ -36,6 +36,19 @@ module Array = struct
     String.concat_array ~sep (Array.map2_exn l1 l2 ~f)
 end
 
+module IntTuple = struct
+  module T = struct
+    type t = int * int [@@deriving sexp]
+    let compare ((i1a, i1b) : t) ((i2a, i2b) : t) : int =
+      match Int.compare i1a i2a with
+      | 0 -> Int.compare i1b i2b
+      | c -> c
+  end
+
+  include T
+  include Comparable.Make (T)
+end
+
 let get_in_channel = function
   | "-"      -> Stdio.In_channel.stdin
   | filename -> Stdio.In_channel.create filename
