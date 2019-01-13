@@ -1,11 +1,12 @@
 #!/bin/bash
 
+TOOL_DIR="$HOME/Tools"
 SELF_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 SYGUS_WITH_GRAMMAR_FILE="/tmp/cvc4.$(basename $2).$(basename $1)"
 "$SELF_DIR"/../_build/install/default/bin/transform -c -r -g $2 $1 > "$SYGUS_WITH_GRAMMAR_FILE"
 
-cvc4="$SELF_DIR"/../../CVC4/build/bin/cvc4
+cvc4="$TOOL_DIR"/CVC4/bin/cvc4
 bench="$SYGUS_WITH_GRAMMAR_FILE"
 
 function runl {
