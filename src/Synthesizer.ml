@@ -124,8 +124,8 @@ let solve_impl consts task stats =
   in
   let expand size =
     List.iter2_exn ~f:(expand_type size)
-                   [bool_candidates ; int_candidates]
-                   [bool_components ; int_components]
+                   [int_candidates ; bool_candidates]
+                   [int_components ; bool_components]
   in
   for size = 2 to max_size-1 ; do expand size done
 
