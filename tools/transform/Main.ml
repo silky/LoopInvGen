@@ -88,33 +88,40 @@ let fix_arity benchmark =
     | List sexps -> List (List.map ~f:helper sexps)
   in List.map ~f:helper benchmark
 
-let sanitize_names benchmark =
-  let sanitize str = String.tr str ~target:'-' ~replacement:'_' in
-  let parsed = SyGuS.parse_sexps benchmark in
-  let names_table = String.Table.create () ~size:(List.length parsed.variables)
-   in List.iter parsed.variables
-                ~f:(fun (v,_) -> String.Table.set names_table
-                                                  ~key:v ~data:(sanitize v))
-    ; List.iter (parsed.inv_func :: parsed.functions)
-                ~f:(fun f -> String.Table.set names_table
-                                              ~key:f.name ~data:(sanitize f.name))
-    ; let rec helper = function
-        | Atom a -> begin match String.Table.find names_table a with
-                      | None -> Atom a
-                      | Some v -> Atom v
-                    end
-        | List l -> List (List.map ~f:helper l)
-       in List.map ~f:helper benchmark
+let sanitize_names benchmark = function
+  | None -> benchmark
+  | Some map_file
+    -> let open Out_channel in
+        let mapch = create map_file in
+        let sanitize str = String.tr str ~target:'-' ~replacement:'_' in
+        let parsed = SyGuS.parse_sexps benchmark in
+        let names_table = String.Table.create () ~size:(List.length parsed.variables)
+        in List.iter
+              parsed.variables
+              ~f:(fun (v,_) -> let sv = sanitize v
+                                in output_string mapch ("s/" ^ v ^ "/" ^ v ^ "/g\n")
+                                ; String.Table.set names_table ~key:v ~data:sv)
+          ; List.iter
+              (parsed.inv_func :: parsed.functions)
+              ~f:(fun f -> let sfname = sanitize f.name
+                            in output_string mapch ("s/" ^ sfname ^ "/" ^ f.name ^ "/g\n")
+                            ; String.Table.set names_table ~key:f.name ~data:sfname)
+          ; close mapch
+          ; let rec helper = function
+              | Atom a -> begin match String.Table.find names_table a with
+                            | None -> Atom a
+                            | Some v -> Atom v
+                          end
+              | List l -> List (List.map ~f:helper l)
+            in List.map ~f:helper benchmark
 
-let main gramfile do_translate
-         do_replace_vars do_replace_consts do_fix_arity
-         do_sanitize_names
-         sygusfile () =
+let main gramfile
+         do_translate do_replace_vars do_replace_consts do_fix_arity
+         sanitization_map_file sygusfile () =
   let (rules, funcs) = read_grammar_from gramfile in
   let in_chan = Utils.get_in_channel sygusfile in
   let benchmark = input_sexps in_chan in
-  let benchmark = if do_sanitize_names then sanitize_names benchmark
-                                       else benchmark in
+  let benchmark = sanitize_names benchmark sanitization_map_file in
   let new_rules = replace rules ~benchmark do_replace_vars do_replace_consts in
   let benchmark = List.rev (
                     List.fold benchmark ~init:[]
@@ -140,8 +147,8 @@ let spec =
        ~doc:"Replace (Constant T) in the grammar with non-terminals that point to constants."
     +> flag "-a" no_arg
        ~doc:"Replace variadic versions of +, *, and, or with binary versions."
-    +> flag "-s" no_arg
-       ~doc:"Sanitize variable and function names."
+    +> flag "-s" (optional string)
+       ~doc:"Sanitize variable and function names and generate a mapping file."
     +> anon (maybe_with_default "-" ("filename" %: file))
   )
 

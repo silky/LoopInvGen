@@ -3,12 +3,12 @@
 TOOL_DIR="$HOME/Tools"
 SELF_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
-if [ -n "$2" ]; then
-  SYGUS_WITH_GRAMMAR_FILE="/tmp/sketch.$(basename $2).$(basename $1)"
-  "$SELF_DIR"/../_build/install/default/bin/transform -a -c -r -s -t -g $2 $1 > "$SYGUS_WITH_GRAMMAR_FILE"
-else
-  SYGUS_WITH_GRAMMAR_FILE="$1"
-fi
+SYGUS_WITH_GRAMMAR_FILE="/tmp/sketch.$(basename $2).$(basename $1)"
+SYGUS_NAME_MAPPING_FILE="/tmp/sketch.$(basename $2).$(basename $1).map"
+
+"$SELF_DIR"/../_build/install/default/bin/transform \
+  -a -c -r -s "$SYGUS_NAME_MAPPING_FILE" -t -g $2 $1 \
+  > "$SYGUS_WITH_GRAMMAR_FILE"
 
 sed -i 's/!/_prime/g' "$SYGUS_WITH_GRAMMAR_FILE"
 sed -i 's/=>\ /impliesfn /g' "$SYGUS_WITH_GRAMMAR_FILE"
@@ -27,6 +27,11 @@ for I in {2..10}; do
     sed -i 's/divfn\ /div /g' sygus.out
     sed -i 's/modfn\ /mod /g' sygus.out
     sed -i 's/iteBitfn\ /ite /g' sygus.out
+
+    while read -u 23 p ; do
+      sed -i $p sygus.out
+    done 23< "$SYGUS_NAME_MAPPING_FILE"
+
     cat sk.out >&2 ; cat sygus.out ; exit
   fi
 done
