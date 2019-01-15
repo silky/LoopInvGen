@@ -88,6 +88,13 @@ let fix_arity benchmark =
     | List sexps -> List (List.map ~f:helper sexps)
   in List.map ~f:helper benchmark
 
+let rec replace_using_table table = function
+  | Atom a -> begin match String.Table.find table a with
+                | None -> Atom a
+                | Some v -> Atom v
+              end
+  | List l -> List (List.map ~f:(replace_using_table table) l)
+
 let sanitize_names benchmark = function
   | None -> benchmark
   | Some map_file
@@ -96,48 +103,60 @@ let sanitize_names benchmark = function
         let sanitize str = String.tr str ~target:'-' ~replacement:'_' in
         let parsed = SyGuS.parse_sexps benchmark in
         let names_table = String.Table.create () ~size:(List.length parsed.variables)
-        in List.iter
+         in List.iter
               parsed.variables
               ~f:(fun (v,_) -> let sv = sanitize v
-                                in output_string mapch ("s/" ^ v ^ "/" ^ v ^ "/g\n")
+                                in output_string mapch ("(" ^ sv ^ " " ^ v ^ ")\n")
                                 ; String.Table.set names_table ~key:v ~data:sv)
           ; List.iter
               (parsed.inv_func :: parsed.functions)
               ~f:(fun f -> let sfname = sanitize f.name
-                            in output_string mapch ("s/" ^ sfname ^ "/" ^ f.name ^ "/g\n")
+                            in output_string mapch ("(" ^ sfname ^ " " ^ f.name ^ ")\n")
                             ; String.Table.set names_table ~key:f.name ~data:sfname)
           ; close mapch
-          ; let rec helper = function
-              | Atom a -> begin match String.Table.find names_table a with
-                            | None -> Atom a
-                            | Some v -> Atom v
-                          end
-              | List l -> List (List.map ~f:helper l)
-            in List.map ~f:helper benchmark
+          ; List.map ~f:(replace_using_table names_table) benchmark
 
-let main gramfile
-         do_translate do_replace_vars do_replace_consts do_fix_arity
-         sanitization_map_file sygusfile () =
-  let (rules, funcs) = read_grammar_from gramfile in
-  let in_chan = Utils.get_in_channel sygusfile in
-  let benchmark = input_sexps in_chan in
-  let benchmark = sanitize_names benchmark sanitization_map_file in
-  let new_rules = replace rules ~benchmark do_replace_vars do_replace_consts in
-  let benchmark = List.rev (
-                    List.fold benchmark ~init:[]
-                      ~f:(fun acc sexp -> match sexp with
-                          | List ((Atom "synth-inv" as x) :: y :: z :: _)
-                            -> (List [x ; y ; z ; (List new_rules)]) :: (funcs @ acc)
-                          | _ -> sexp :: acc))
-   in let benchmark = if do_fix_arity then fix_arity benchmark else benchmark
-   in let benchmark = if do_translate then translate_to_general benchmark else benchmark
-   in List.iter ~f:(fun s -> Stdio.Out_channel.print_endline (Sexp.to_string_hum ~indent:4 s)) benchmark
-    ; Stdio.In_channel.close in_chan
+let main gramfile do_translate do_replace_vars do_replace_consts do_fix_arity
+         sanitize_map_file unsanitize_map_file inputfile () =
+
+  let in_chan = Utils.get_in_channel inputfile in
+  let benchmark = ref (input_sexps in_chan)
+   in In_channel.close in_chan
+    ; begin match unsanitize_map_file with
+      | Some umap_file
+        -> let umap_chan = In_channel.create umap_file in
+           let umap_sexps = input_sexps umap_chan in
+           let umap_table = String.Table.create () ~size:(List.length umap_sexps)
+            in In_channel.close umap_chan
+             ; List.iter umap_sexps
+                 ~f:(fun [@warning "-8"] (List [ (Atom sname) ; (Atom name) ])
+                     -> String.Table.set umap_table ~key:sname ~data:name)
+             ; benchmark := List.map ~f:(replace_using_table umap_table) !benchmark
+      | None -> benchmark := sanitize_names !benchmark sanitize_map_file
+              ; begin match gramfile with
+                | None -> ()
+                | Some gfile
+                  -> let (rules, funcs) = read_grammar_from gfile in
+                      let new_rules = replace rules ~benchmark:!benchmark
+                                              do_replace_vars do_replace_consts
+                      in benchmark := List.rev (
+                           List.fold !benchmark ~init:[]
+                             ~f:(fun acc sexp -> match sexp with
+                                 | List ((Atom "synth-inv" as x) :: y :: z :: _)
+                                   -> (List [x ; y ; z ; (List new_rules)])
+                                   :: (funcs @ acc)
+                                 | _ -> sexp :: acc))
+                end
+              ; if do_fix_arity then benchmark := fix_arity !benchmark
+              ; if do_translate then benchmark := translate_to_general !benchmark
+      end
+    ; List.iter !benchmark ~f:(fun s -> Out_channel.print_endline
+                                          (Sexp.to_string_hum ~indent:4 s))
 
 let spec =
   let open Command.Spec in (
     empty
-    +> flag "-g" (required string)
+    +> flag "-g" (optional string)
        ~doc:"FILENAME The grammar file for the benchmark."
     +> flag "-t" no_arg
        ~doc:"Translate the SyGuS-INV benchmark to a SyGuS-General one."
@@ -149,6 +168,8 @@ let spec =
        ~doc:"Replace variadic versions of +, *, and, or with binary versions."
     +> flag "-s" (optional string)
        ~doc:"Sanitize variable and function names and generate a mapping file."
+    +> flag "-u" (optional string)
+       ~doc:"Unsanitize using a given mapping file."
     +> anon (maybe_with_default "-" ("filename" %: file))
   )
 

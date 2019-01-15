@@ -22,8 +22,6 @@ else
   PYTHONPATH="$TOOL_DIR"/EUSolver/thirdparty/libeusolver/build:"$TOOL_DIR"/EUSolver/thirdparty/z3/build/python \
     "$PYPATH" "$TOOL_DIR"/EUSolver/bin/benchmarks.py "$SYGUS_WITH_GRAMMAR_FILE" > "$SYGUS_OUTPUT_FILE"
 
-  while read -u 23 p ; do
-    sed -i $p "$SYGUS_OUTPUT_FILE"
-  done 23< "$SYGUS_NAME_MAPPING_FILE"
-  cat "$SYGUS_OUTPUT_FILE"
+  "$SELF_DIR"/../_build/install/default/bin/transform \
+    -u "$SYGUS_NAME_MAPPING_FILE" "$SYGUS_OUTPUT_FILE"
 fi

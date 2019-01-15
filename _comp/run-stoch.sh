@@ -23,8 +23,7 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../lib ./stoch "$SYGUS_WITH_GRAMMAR_FILE" > res
 sed -i 's/\/ /div /g' res
 sed -i 's/modfn\ /mod /g' res
 
-while read -u 23 p ; do
-  sed -i $p res
-done 23< "$SYGUS_NAME_MAPPING_FILE"
+"$SELF_DIR"/../_build/install/default/bin/transform \
+  -u "$SYGUS_NAME_MAPPING_FILE" res
 
-cat log* >&2 ; cat res
+cat log* >&2

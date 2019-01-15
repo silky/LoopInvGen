@@ -28,11 +28,10 @@ for I in {2..10}; do
     sed -i 's/modfn\ /mod /g' sygus.out
     sed -i 's/iteBitfn\ /ite /g' sygus.out
 
-    while read -u 23 p ; do
-      sed -i $p sygus.out
-    done 23< "$SYGUS_NAME_MAPPING_FILE"
+    "$SELF_DIR"/../_build/install/default/bin/transform \
+      -u "$SYGUS_NAME_MAPPING_FILE" sygus.out
 
-    cat sk.out >&2 ; cat sygus.out ; exit
+    cat sk.out >&2 ; exit
   fi
 done
 cat sk.out >&2
