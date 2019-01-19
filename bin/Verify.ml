@@ -83,9 +83,11 @@ let exit_code_of_result res =
   | NO_SOLUTION_PASS -> 2
   | NO_SOLUTION_FAIL -> 3
 
-let main zpath filename logfile weak_types invfile () =
+let main zpath filename logfile logic weak_types invfile () =
   Log.enable ~msg:"VERIFY" logfile ;
-  let sygus = SyGuS.parse (get_in_channel filename) in
+  let sygus = match logic with
+    | None -> SyGuS.parse (get_in_channel filename)
+    | Some l -> { (SyGuS.parse (get_in_channel filename)) with logic = l} in
   let inv = read_inv_from_chan weak_types (get_in_channel invfile) ~sygus in
   let res =
     try check_invariant ~zpath ~sygus (Sexplib.Sexp.to_string_hum inv)
@@ -102,6 +104,8 @@ let spec =
        ~doc:"FILENAME input file containing the SyGuS-INV problem"
     +> flag "-l" (optional string)
        ~doc:"FILENAME output file for logs, defaults to null"
+    +> flag "-L" (optional string)
+       ~doc:"LOGIC Override the logic specified in the SyGuS file"
     +> flag "-t" no_arg
        ~doc:"Weak type checking. Allow: 0 for false, 1 for true in invariant"
     +> anon (maybe_with_default "-" ("filename" %: file))
