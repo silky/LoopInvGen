@@ -180,7 +180,7 @@ let solve_impl consts config task stats=
     } in match Value.typeof value with
          | Type.BOOL -> ignore (add_candidate bool_candidates 0 1 candidate)
          | Type.INT -> ignore (add_candidate int_candidates 0 1 candidate)
-  in List.iter constants ~f:add_constant_candidate
+  in List.(iter (rev constants) ~f:add_constant_candidate)
   ;
 
   List.iteri task.inputs ~f:(fun i input ->
